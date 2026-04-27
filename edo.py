@@ -6,7 +6,6 @@ This module provides:
 - EDOConfig class: encapsulates EDO math, MIDI conversion, pitch bends.
 - Chord template functions for 12-EDO, 19-EDO, and generic N-EDO.
 """
-
 class EDOConfig:
     def __init__(self, N=12, base_midi=60, base_freq_hz=261.63, pitch_bend_range=2):
         self.N = N
@@ -27,9 +26,9 @@ class EDOConfig:
         cents_offset = self.cents(h) - self.cents(self._midi_to_h(self.base_midi))
         return self.base_freq_hz * (2.0 ** (cents_offset / 1200.0))
 
-# Convert MIDI note number to pitch height (in 12-EDO steps).
+# Convert MIDI note number to pitch height (in n-EDO steps).
     def _midi_to_h(self, midi):
-        return midi  # In 12-EDO, MIDI note == height step
+        return int(round(midi * self.N / 12))
 
 
     """
@@ -38,7 +37,7 @@ class EDOConfig:
         relative to the nearest semitone, within the pitch_bend_range.
 
         Returns:
-              (midi_note, bend) where bend is in range [-8192, 8191].
+            (midi_note, bend) where bend is in range [-8192, 8191].
         """
 
     def to_midi_and_bend(self, h):
@@ -64,56 +63,26 @@ class EDOConfig:
 EDO_12 = EDOConfig(N=12)
 EDO_19 = EDOConfig(N=19, pitch_bend_range=2)
 
-
-
 # Function for custom of n steps EDOs
 def make_edo(n):
     return EDOConfig(N=n)
 
-# Chord templates for 12-EDO (intervals in EDO steps)
-def chord_templates_12():
-    return {
-        "maj": [0, 4, 7],
-        "min": [0, 3, 7],
-        "dim": [0, 3, 6],
-        "aug": [0, 4, 8],
-        "7":   [0, 4, 7, 10],
-        "maj7": [0, 4, 7, 11],
-        "min7": [0, 3, 7, 10],
-    }
-
-# Chord templates for 19-EDO (intervals in EDO steps)
-def chord_templates_19():
-    return {
-        "maj": [0, 6, 11],  # c e and g
-        "min": [0, 5, 11],  # c eb and g ...
-        "dim": [0, 5, 10],  
-        "aug": [0, 6, 12],  
-        "7":   [0, 6, 11, 17], 
-        "maj7": [0, 6, 11, 18], 
-        "min7": [0, 5, 11, 17], 
-    }
-
 def get_chord_templates(edo: EDOConfig):
-    if edo.N == 12:
-        return chord_templates_12()
-    elif edo.N == 19:
-        return chord_templates_19()
-    else:
-        # approximate using cents ratios to find step counts for major third, minor third, perfect fifth, etc.
-        s = edo.N
-        maj3 = round(s * 386 / 1200)
-        min3 = round(s * 316 / 1200)
-        p5   = round(s * 702 / 1200)
-        min7 = round(s * 996 / 1200)
-        maj7 = round(s * 1088 / 1200)
-        return {
-            "maj":  [0, maj3, p5],
-            "min":  [0, min3, p5],
-            "dom7": [0, maj3, p5, min7],
-            "maj7": [0, maj3, p5, maj7],
-            "min7": [0, min3, p5, min7],
-        }
+    # approximate using cents ratios to find step counts for major third, minor third, perfect fifth, etc.
+    s = edo.N
+    maj3 = round(s * 386 / 1200)
+    min3 = round(s * 316 / 1200)
+    p5   = round(s * 702 / 1200)
+    min7 = round(s * 996 / 1200)
+    maj7 = round(s * 1088 / 1200)
+    return {
+        # will add more of them like dim 7 and aug 4 later
+        "maj":  [0, maj3, p5],
+        "min":  [0, min3, p5],
+        "dom7": [0, maj3, p5, min7],
+        "maj7": [0, maj3, p5, maj7],
+        "min7": [0, min3, p5, min7],
+    }
 
 
 
@@ -160,3 +129,9 @@ print(EDO_12.interval_cents(36, 67)) # Output: 3100.0 cents
 # Distance between C (0) and B (11)
 # It finds the "shortcut" across the octave circle
 print(EDO_12.chromatic_pc_distance(0, 11)) # Output: 1 (Because B is just 1 step below C)
+
+
+print(get_chord_templates(EDO_12))  # Output: Standard 12-EDO chord templates
+print(get_chord_templates(EDO_19))  # Output: 19-EDO chord templates
+print(get_chord_templates(make_edo(12)))
+print(get_chord_templates(make_edo(13)))
