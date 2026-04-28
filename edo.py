@@ -1,6 +1,6 @@
 """
 EDO pitch math and utilities.
-Supports 12, 19 and any N-EDO (Equal Divisions of the Octave).
+Supports any N-EDO (Equal Divisions of the Octave).
 
 This module provides:
 - EDOConfig class: encapsulates EDO math, MIDI conversion, pitch bends.
@@ -29,16 +29,6 @@ class EDOConfig:
 # Convert MIDI note number to pitch height (in n-EDO steps).
     def _midi_to_h(self, midi):
         return int(round(midi * self.N / 12))
-
-
-    """
-        Convert a pitch height h to (MIDI note number, pitch bend value).
-        For microtonal EDOs (e.g., 19-EDO), the bend value is calculated
-        relative to the nearest semitone, within the pitch_bend_range.
-
-        Returns:
-            (midi_note, bend) where bend is in range [-8192, 8191].
-        """
 
     def to_midi_and_bend(self, h):
         c = 1200.0 * h / self.N
@@ -70,68 +60,56 @@ def make_edo(n):
 def get_chord_templates(edo: EDOConfig):
     # approximate using cents ratios to find step counts for major third, minor third, perfect fifth, etc.
     s = edo.N
-    maj3 = round(s * 386 / 1200)
-    min3 = round(s * 316 / 1200)
-    p5   = round(s * 702 / 1200)
-    min7 = round(s * 996 / 1200)
-    maj7 = round(s * 1088 / 1200)
+    # Common interval approximations in cents
+    min2  = round(s * 100 / 1200)   # minor 2nd
+    maj2  = round(s * 200 / 1200)   # major 2nd
+    min3  = round(s * 316 / 1200)   # minor 3rd
+    maj3  = round(s * 386 / 1200)   # major 3rd
+    p4    = round(s * 498 / 1200)   # perfect 4th
+    aug4  = round(s * 590 / 1200)   # augmented 4th / tritone
+    p5    = round(s * 702 / 1200)   # perfect 5th
+    aug5  = round(s * 814 / 1200)   # augmented 5th
+    min6  = round(s * 814 / 1200)   # minor 6th
+    maj6  = round(s * 884 / 1200)   # major 6th
+    min7  = round(s * 996 / 1200)   # minor 7th
+    maj7  = round(s * 1088 / 1200)  # major 7th
+
     return {
-        # will add more of them like dim 7 and aug 4 later
-        "maj":  [0, maj3, p5],
-        "min":  [0, min3, p5],
-        "dom7": [0, maj3, p5, min7],
-        "maj7": [0, maj3, p5, maj7],
-        "min7": [0, min3, p5, min7],
+        # Triads
+        "maj":    [0, maj3, p5],
+        "min":    [0, min3, p5],
+        "dim":    [0, min3, p5 - min2],      # diminished 5th
+        "aug":    [0, maj3, aug5],
+        "sus2":   [0, maj2, p5],
+        "sus4":   [0, p4,   p5],
+        "pow":    [0, p5],                   # power chord (root + 5th)
+
+        # 7ths
+        "maj7":   [0, maj3, p5, maj7],
+        "min7":   [0, min3, p5, min7],
+        "dom7":   [0, maj3, p5, min7],
+        "minmaj7":[0, min3, p5, maj7],
+        "hdim":   [0, min3, p5 - min2, min7],   # half-diminished (m7b5)
+        "dim7":   [0, min3, p5 - min2, maj6],   # fully diminished 7
+
+        # Extended
+        "dom9":   [0, maj3, p5, min7, maj2],
+        "dom13":  [0, maj3, p5, min7, maj2, maj6],
+        "min9":   [0, min3, p5, min7, maj2],
+        "min11":  [0, min3, p5, min7, maj2, p4],
+        "maj9":   [0, maj3, p5, maj7, maj2],
+
+        # Altered / Jazz
+        "alt":      [0, min3, aug4, min6, min7],     # altered dominant (super-locrian)
+        "lyd_dom":  [0, maj3, aug4, p5, min7],       # lydian dominant (#11)
+        "quartal":  [0, p4, p5 + min2, p5 + maj2],   # quartal voicing example
     }
 
-
-
-# 1. pitch_class(h)
-# Use Case: Identifying a step/note's name (like "C" or "G").
-
-# 12-EDO example
-# Step 2 = D, Step 14 = D (one octave higher), Step 26 = D (two octaves higher)
-
-print(EDO_12.pitch_class(2))   # Output: 2
-print(EDO_12.pitch_class(14))  # Output: 2
-print(EDO_12.pitch_class(26))  # Output: 2 (All are "D")
-
-# 2. cents(h)
-# Use Case: Checking the "ruler" position of a note to compare it against other tuning systems.
-# Compare a "Major Third" (Step 4 in 12-EDO vs Step 6 in 19-EDO)
-
-print(EDO_12.cents(4))  # Output: 400.0 (Standard Third)
-print(EDO_19.cents(6))  # Output: 378.947 ...
-
-# 3. freq(h)
-# Use Case: Setting the actual vibration speed for a digital synthesizer oscillator.
-# Calculate frequency for Middle C (if h=60 is C4)
-
-print(EDO_12.freq(60))  # Output: 261.63 Hz
-
-
-# 4. to_midi_and_bend(h)
-# Use Case: Sending instructions to a MIDI keyboard. If the note is microtonal (like in 19-EDO), it calculates how much to "bend" the pitch wheel automatically.
-
-# Step 10 in 19-EDO doesn't exist on a piano
-# It returns (MIDI note, Pitch Bend value)
-print(EDO_19.to_midi_and_bend(10)) 
-# Output: (6, 1293) -> "Play F#, but bend it up quite a bit"
-
-# 5. interval_cents(h1, h2)
-# Use Case: Measuring the "distance" of a melodic leap to see if it’s easy for a singer to hit.
-# Distance from low C (h=36) to high G (h=67)
-print(EDO_12.interval_cents(36, 67)) # Output: 3100.0 cents
-
-# 6. chromatic_pc_distance(pc1, pc2)
-# Use Case: Analysis of "Chord Voicing." It helps an algorithm decide if two notes are close together (consonant) or far apart (dissonant).
-
-# Distance between C (0) and B (11)
-# It finds the "shortcut" across the octave circle
-print(EDO_12.chromatic_pc_distance(0, 11)) # Output: 1 (Because B is just 1 step below C)
-
-
-print(get_chord_templates(EDO_12))  # Output: Standard 12-EDO chord templates
-print(get_chord_templates(EDO_19))  # Output: 19-EDO chord templates
-print(get_chord_templates(make_edo(12)))
-print(get_chord_templates(make_edo(13)))
+def get_major_scale_pcs(edo: EDOConfig) -> list[int]:
+    """
+    Return the pitch classes (0..N-1) of the major scale for this EDO,starting at tonic=0.
+    """
+    # Cents values for major scale degrees (1 to 7, relative to tonic)
+    cents_offsets = [0, 200, 400, 500, 700, 900, 1100]
+    steps = [round(edo.N * cents / 1200) % edo.N for cents in cents_offsets]
+    return sorted(set(steps))
